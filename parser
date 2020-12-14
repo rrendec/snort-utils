@@ -1,0 +1,73 @@
+#!/usr/bin/python3
+
+from datetime import datetime
+
+def parse_alert_fast(line):
+    # see snort: src/output-plugins/spo_alert_fast.c
+
+    ret = {}
+    parts = line.strip('\n').split(' [**] ')
+
+    if len(parts) != 3:
+        return None
+
+    # The first part is the timestamp
+
+    ts = parts[0].strip()
+    if len(ts) == 21:
+        raise RuntimeError('Unsupported timestamp format')
+    if len(ts) != 24:
+        return None
+    try:
+        ret['timestamp'] = datetime.strptime(ts, '%m/%d/%y-%H:%M:%S.%f')
+    except:
+        return None
+
+    # The second part is the signature [gen:id:rev] tuple and the message
+
+    sig, msg = parts[1].split(' ', 1)
+    sig = sig.strip('[]').split(':')
+    if len(sig) != 3:
+        return None
+    ret['sig'] = {'gen': int(sig[0]), 'id': int(sig[1]), 'rev': int(sig[2])}
+    ret['msg'] = msg
+
+    # The third part is the classification, priority and packet header info
+
+    cls, aux = parts[2].split('{', 1)
+    pktype, ipaddr = aux.split('} ', 1)
+    for cls in cls.strip().split('] ['):
+        cls = cls.strip('[]').split(': ', 1)
+        if cls[0] == 'Classification':
+            ret['cls'] = cls[1]
+        if cls[0] == 'Priority':
+            ret['prio'] = int(cls[1])
+    ret['pktype'] = pktype
+    ret['src'], ret['dst'] = ipaddr.split(' -> ')
+
+    return ret
+
+data = {}
+with open('alert.log', 'r') as f:
+    for line in f:
+        a = parse_alert_fast(line)
+        if a is None:
+            continue
+
+        if a['prio'] not in data:
+            data[a['prio']] = {}
+
+        key = '%015d:%015d' % (a['sig']['gen'], a['sig']['id'])
+        if key in data[a['prio']]:
+            data[a['prio']][key]['count'] += 1
+        else:
+            data[a['prio']][key] = {'count': 1, 'cls': a['cls'], 'msg': a['msg']}
+
+for prio in sorted(data):
+    siglist = data[prio]
+    print('Priority %d [total %d]' % (prio, sum(sig['count'] for sig in siglist.values())))
+    for skey in sorted(siglist):
+        sdata = siglist[skey]
+        skey = ':'.join(val.lstrip('0') for val in skey.split(':'))
+        print('\t[%s] [%s] %s [total %d]' % (skey, sdata['cls'], sdata['msg'], sdata['count']))
+
