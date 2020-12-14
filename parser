@@ -30,7 +30,7 @@ def parse_alert_fast(line):
     if len(sig) != 3:
         return None
     ret['sig'] = {'gen': int(sig[0]), 'id': int(sig[1]), 'rev': int(sig[2])}
-    ret['msg'] = msg
+    ret['msg'] = msg.strip()
 
     # The third part is the classification, priority and packet header info
 
