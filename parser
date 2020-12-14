@@ -57,17 +57,25 @@ with open('alert.log', 'r') as f:
         if a['prio'] not in data:
             data[a['prio']] = {}
 
+        if a['cls'] not in data[a['prio']]:
+            data[a['prio']][a['cls']] = {}
+
         key = '%015d:%015d' % (a['sig']['gen'], a['sig']['id'])
-        if key in data[a['prio']]:
-            data[a['prio']][key]['count'] += 1
+        if key in data[a['prio']][a['cls']]:
+            data[a['prio']][a['cls']][key]['count'] += 1
         else:
-            data[a['prio']][key] = {'count': 1, 'cls': a['cls'], 'msg': a['msg']}
+            data[a['prio']][a['cls']][key] = {'count': 1, 'msg': a['msg']}
 
 for prio in sorted(data):
-    siglist = data[prio]
-    print('Priority %d [total %d]' % (prio, sum(sig['count'] for sig in siglist.values())))
-    for skey in sorted(siglist):
-        sdata = siglist[skey]
-        skey = ':'.join(val.lstrip('0') for val in skey.split(':'))
-        print('\t[%s] [%s] %s [total %d]' % (skey, sdata['cls'], sdata['msg'], sdata['count']))
+    clslist = data[prio]
+    cnt = sum(sum(sig['count'] for sig in siglist.values()) for siglist in clslist.values())
+    print('Priority %d [total %d]' % (prio, cnt))
+    for cls in sorted(clslist):
+        siglist = clslist[cls];
+        cnt = sum(sig['count'] for sig in siglist.values())
+        print('\t%s [total %d]' % (cls, cnt))
+        for skey in sorted(siglist):
+            sdata = siglist[skey]
+            skey = ':'.join(val.lstrip('0') for val in skey.split(':'))
+            print('\t\t[%s] %s [total %d]' % (skey, sdata['msg'], sdata['count']))
 
