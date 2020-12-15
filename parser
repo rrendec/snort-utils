@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import sys
 from datetime import datetime
 
 def parse_alert_fast(line):
@@ -47,8 +48,7 @@ def parse_alert_fast(line):
 
     return ret
 
-data = {}
-with open('alert.log', 'r') as f:
+def read_file(f):
     for line in f:
         a = parse_alert_fast(line)
         if a is None:
@@ -65,6 +65,14 @@ with open('alert.log', 'r') as f:
             data[a['prio']][a['cls']][key]['count'] += 1
         else:
             data[a['prio']][a['cls']][key] = {'count': 1, 'msg': a['msg']}
+
+data = {}
+for path in sys.argv[1:]:
+    if path == '-':
+        read_file(sys.stdin)
+    else:
+        with open(path, 'r') as f:
+            read_file(f)
 
 for prio in sorted(data):
     clslist = data[prio]
