@@ -1,0 +1,30 @@
+#!/bin/bash
+
+SNORT_USER="snort"
+LOG_DIR="/var/log/snort"
+ARCH_DIR="$LOG_DIR/archive"
+PP_CFG="/etc/snort/pulledpork/pulledpork.conf"
+
+dir="$ARCH_DIR/$(date +'%Y%m%d-%H%M')"
+mkdir -p "$dir"
+
+cd "$LOG_DIR"
+mv alert.csv alert.log tcpdump.log.* "$dir"
+cd ~-
+
+# Update rules. Do this after we move the log files away, or else the
+# snort instance that pulledpork invokes will choke because it cannot
+# open the log files as user snort.
+su -l -s /bin/bash -c "pulledpork.pl -c $PP_CFG -l" $SNORT_USER
+
+# Restart the snort daemon. This loads the new rules and releases the
+# old log files.
+SYSTEMCTL_SKIP_REDIRECT=y /etc/rc.d/init.d/snortd restart
+
+echo
+echo "The old snort logs were saved in $dir"
+echo "Alert summary for $(date +'%m/%d/%Y'):"
+echo
+
+# Finally, run the log parser.
+snu-parser "$dir/alert.log"
