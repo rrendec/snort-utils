@@ -2,14 +2,18 @@
 
 SNORT_USER="snort"
 LOG_DIR="/var/log/snort"
-ARCH_DIR="$LOG_DIR/archive"
+TMP_DIR="$LOG_DIR/tmp"
+ARCH_DIR="/data/snort"
 PP_CFG="/etc/snort/pulledpork/pulledpork.conf"
 
-dir="$ARCH_DIR/$(date +'%Y%m%d-%H%M')"
-mkdir -p "$dir"
+# Make sure the temporary directory exists.
+mkdir -p "$TMP_DIR"
 
+# First move files to the temporary directory, which must reside on the
+# same filesystem as the snort logs. At this point, some log files are
+# still open/used by snort.
 cd "$LOG_DIR"
-mv alert.csv alert.log tcpdump.log.* "$dir"
+mv alert.csv alert.log tcpdump.log.* "$TMP_DIR"
 cd ~-
 
 # Update rules. Do this after we move the log files away, or else the
@@ -20,6 +24,11 @@ su -l -s /bin/bash -c "pulledpork.pl -c $PP_CFG -l" $SNORT_USER
 # Restart the snort daemon. This loads the new rules and releases the
 # old log files.
 SYSTEMCTL_SKIP_REDIRECT=y /etc/rc.d/init.d/snortd restart
+
+# At this point it is safe to move the old log files to a different
+# filesystem, since all files have been closed by snort.
+dir="$ARCH_DIR/$(date +'%Y%m%d-%H%M')"
+mv "$TMP_DIR" "$dir"
 
 echo
 echo "The old snort logs were saved in $dir"
